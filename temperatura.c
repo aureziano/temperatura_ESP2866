@@ -279,7 +279,7 @@ void conecta_wifi(void)
     if(WiFiMulti.run() != WL_CONNECTED)
     {
       /* tenta a conexão wifi2 */
-      WiFiMulti.addAP(ssid3, password3);
+      WiFiMulti.addAP(ssid2, password2);
       int tempo_wait = 0;  
       while (WiFiMulti.run() != WL_CONNECTED && tempo_wait < 10000)
       {
