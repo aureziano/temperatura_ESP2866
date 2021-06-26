@@ -1,7 +1,7 @@
 /*   Comunicação com ThinkSpeak e sinric
  *  Sensor de temperatura --> D13
  *  Sensor de Umidade --> D2 -->GPIO 4
- *  Relé --> D4 --> GPIO 2
+ *  Relé --> D6 --> GPIO 12
  * 
 */
 #include <Arduino.h>
@@ -11,9 +11,6 @@
 #include <ArduinoJson.h> 
 #include <StreamString.h>
 #include <ESP8266WiFi.h>  //ESP8266 Core WiFi Library  
-#include <ESP8266WebServer.h> //Local WebServer used to serve the configuration portal    
-#include <DNSServer.h> //Local DNS Server used for redirecting all requests to the configuration portal ( https://github.com/zhouhan0126/DNSServer---esp32 )
-#include <WiFiManager.h>  // WiFi Configuration Magic ( https://github.com/zhouhan0126/WIFIMANAGER-ESP32 ) >> htt
 
 //--------Temperatura------------
 #include "OneWire.h"
@@ -21,18 +18,12 @@
 #define ONE_WIRE_BUS 4  // DS18B20 pin
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature DS18B20(&oneWire);
-//--------Umidade----------------
-#include <DHT.h>
 
-//GPIO do NodeMCU que o pino de comunicação do sensor está ligado.
-#define DHTPIN D1
-#define DHTTYPE DHT11 // DHT 11
 //-------------------------------
 /* constantes e variáveis globais */
 char endereco_api_thingspeak[] = "api.thingspeak.com";
-String chave_escrita_thingspeak = "VCSWY9PEGFYSJTPD";  /* Coloque aqui sua chave de escrita do seu canal */
+String chave_escrita_thingspeak = "";  /* Coloque aqui sua chave de escrita do seu canal */
 unsigned long last_connection_time;
-DHT dht(DHTPIN, DHTTYPE);
  
 ESP8266WiFiMulti WiFiMulti;
 WebSocketsClient webSocket;
@@ -41,17 +32,17 @@ WiFiClient client;
 //Instalar o Driver CG340M 
 //Configurações-----------------------------------------
 #define ssid1 "DZ-302_EXT"
-#define password1 "dz11270107"
+#define password1 ""
 #define ssid2 "HughesNet_GERALDO"
-#define password2 "AURE0603"
+#define password2 ""
 #define ssid3 "DZ-302"
-#define password3 "dz11270107"
+#define password3 ""
 #define INTERVALO_ENVIO_THINGSPEAK 30000 /* intervalo entre envios de dados ao ThingSpeak (em ms) */ 
-#define MyApiKey "90964883-6f35-4901-81df-3b8445158c0f"
+#define MyApiKey ""
  
-#define DispositivoID "6096bb44c26766757ecd5374"
+#define DispositivoID ""
  
-#define RelayPin 2 //Pino onde o Relé está conectado
+#define RelayPin 12 //Pino onde o Relé está conectado
 //------------------------------------------------------
  
  
@@ -63,7 +54,7 @@ bool isConnected = false;
 void turnOn(String deviceId);
 void turnOff(String deviceId);
 void webSocketEvent(WStype_t type, uint8_t * payload, size_t length);
-/* prototypes de temperatura e Umidade*/
+/* prototypes de temperatura*/
 void envia_informacoes_thingspeak(String string_dados);
 void init_wifi(void);
 void conecta_wifi(void);
@@ -76,42 +67,16 @@ void setup()
   Serial.begin(115200);
   last_connection_time = 0;
   DS18B20.begin();
+  pinMode(LED_BUILTIN, OUTPUT);
   /* Inicializa e conecta-se ao wi-fi */
   init_wifi();
    
-//  WiFiMulti.addAP(ssid, password);
-//  Serial.println();
-//  Serial.print("Conectando a Rede: ");
-//  Serial.println(ssid);  
- 
-//  //Espera pela conexão WiFi
-//  while(WiFiMulti.run() != WL_CONNECTED) 
-//  {
-//    delay(500);
-//    Serial.print(".");
-//  }
-// 
-//  if(WiFiMulti.run() == WL_CONNECTED) 
-//  {
-//    Serial.println("");
-//    Serial.println("WiFi Conectado");
-//    Serial.println("IP address: ");
-//    Serial.println(WiFi.localIP());
-//  }
- 
-  //Estabelece conexão com Sinric
-  webSocket.begin("iot.sinric.com", 80, "/");
-  webSocket.onEvent(webSocketEvent);
-  webSocket.setAuthorization("apikey", MyApiKey);
-  webSocket.setReconnectInterval(5000);
-
-  /* Inicializa sensor de temperatura e umidade relativa do ar */
-  dht.begin();
 
 }
  
 void loop()
 {
+  digitalWrite(LED_BUILTIN, HIGH);
   webSocket.loop();
   //dados da temperatura
   char fields_a_serem_enviados[100] = {0};
@@ -134,15 +99,14 @@ void loop()
   {
       DS18B20.requestTemperatures(); 
       temperatura_lida = DS18B20.getTempCByIndex(0);
-      umidade_lida = dht.readHumidity();
-//      umidade_lida = DS18B20.getTempC(sensor);
-      Serial.println(String("Temperatura 1:") + String(temperatura_lida, 2));
-      sprintf(fields_a_serem_enviados,"field1=%.2f&field2=%.2f", temperatura_lida, umidade_lida);
+      Serial.println(String("Temperatura 1: ") + String(temperatura_lida, 1));
+      sprintf(fields_a_serem_enviados,"field1=%.1f", temperatura_lida);
       envia_informacoes_thingspeak(fields_a_serem_enviados);
+      envio(temperatura_lida);
   }
 
   delay(1000);
-   
+
   if(client.connected()) 
   {
       Serial.println("Veio Aqui");
@@ -153,9 +117,40 @@ void loop()
           heartbeatTimestamp = now;
           webSocket.sendTXT("H");          
       }
-  }   
+  } 
+  digitalWrite(LED_BUILTIN, LOW);
+  
 }
- 
+
+void envio(float temp)
+{
+  if (client.connect(endereco_api_thingspeak,80))   //   "184.106.153.149" or api.thingspeak.com
+  {  
+       String sendData = chave_escrita_thingspeak+"&field1="+String(temp)+"\r\n\r\n"; 
+       
+       //Serial.println(sendData);
+
+       client.print("POST /update HTTP/1.1\n");
+       client.print("Host: api.thingspeak.com\n");
+       client.print("Connection: close\n");
+       client.print("X-THINGSPEAKAPIKEY: "+chave_escrita_thingspeak+"\n");
+       client.print("Content-Type: application/x-www-form-urlencoded\n");
+       client.print("Content-Length: ");
+       client.print(sendData.length());
+       client.print("\n\n");
+       client.print(sendData);
+
+       Serial.print("Temperature: ");
+       Serial.print(temp);
+       Serial.println("deg C. Connecting to Thingspeak..");
+
+       last_connection_time = millis();
+    }
+      
+//      client.stop();
+      
+      Serial.println("Sending...."); 
+}
  
 void turnOn(String deviceId) 
 {
@@ -240,10 +235,10 @@ void envia_informacoes_thingspeak(String string_dados)
 */
 void init_wifi(void)
 {
-    WiFiMulti.addAP(ssid1, password1);
+    WiFiMulti.addAP(ssid2, password2);
     Serial.println();
     Serial.print("Conectando a Rede: ");
-    Serial.println(ssid1);  
+    Serial.println(ssid2);  
   
     conecta_wifi();
 }
@@ -262,46 +257,18 @@ void conecta_wifi(void)
     }
       
     /* refaz a conexão */
-    WiFiMulti.addAP(ssid1, password1);
+    WiFiMulti.addAP(ssid2, password2);
     if(WiFiMulti.run() == WL_CONNECTED)
     {
-        ssid = ssid1;
+        ssid = ssid2;
         return;
     }
     
     int tempo_wait = 0;  
-    while (WiFiMulti.run() != WL_CONNECTED && tempo_wait < 10000)
+    while (WiFiMulti.run() != WL_CONNECTED)
     {
         delay(100);
-        tempo_wait = tempo_wait + 100;
     }
-
-    if(WiFiMulti.run() != WL_CONNECTED)
-    {
-      /* tenta a conexão wifi2 */
-      WiFiMulti.addAP(ssid2, password2);
-      int tempo_wait = 0;  
-      while (WiFiMulti.run() != WL_CONNECTED && tempo_wait < 10000)
-      {
-          delay(100);
-          tempo_wait = tempo_wait + 100;
-      }
-      ssid = ssid2;
-    }
- 
-    if(WiFiMulti.run() != WL_CONNECTED)
-    {
-      /* tenta a conexão wifi3 */
-      WiFiMulti.addAP(ssid3, password3);
-      int tempo_wait = 0;  
-      while (WiFiMulti.run() != WL_CONNECTED && tempo_wait < 10000)
-      {
-          delay(100);
-          tempo_wait = tempo_wait + 100;
-      }
-      ssid = ssid3;
-    }
-    
     Serial.println("Conectado com sucesso a rede wi-fi \n");
     Serial.println(ssid);
 }
