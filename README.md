@@ -1,6 +1,13 @@
-# Projeto de Monitoramento de Temperatura, Umidade e Controle de Relé com ESP8266
+![ESP8266 Badge](https://img.shields.io/badge/ESP8266-IDE-blue)
+![WiFi Badge](https://img.shields.io/badge/Wi--Fi-SSID-green)
+![ThingSpeak Badge](https://img.shields.io/badge/ThingSpeak-API-orange)
+![Sinric Badge](https://img.shields.io/badge/Sinric-WebSocket-red)
+![DS18B20 Badge](https://img.shields.io/badge/DS18B20-Temperature-brightgreen)
+![Arduino Badge](https://img.shields.io/badge/Arduino-IDE-yellowgreen)
 
-Este projeto utiliza o **ESP8266** para monitorar a temperatura e a umidade utilizando o sensor **DHT** e enviar esses dados para a plataforma **ThingSpeak**. Também é possível controlar um relé, que pode ser usado para ligar ou desligar dispositivos, e interagir com o **Sinric** para controle via WebSockets.
+# Medidor de Temperatura - ESP8266 + DS18B20 + ThingSpeak
+
+Este projeto utiliza o **ESP8266** para monitorar a temperatura utilizando o sensor **DS18B20** e enviar esses dados para a plataforma **ThingSpeak**. Também é possível controlar um relé, que pode ser usado para ligar ou desligar dispositivos, e interagir com o **Sinric** para controle via WebSockets.
 
 ## Requisitos
 
